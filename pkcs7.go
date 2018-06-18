@@ -121,6 +121,10 @@ type signerInfo struct {
 	UnauthenticatedAttributes []attribute `asn1:"optional,tag:1"`
 }
 
+func (si *signerInfo) SignatureAlgorithmDetails() (x509.SignatureAlgorithm, crypto.Hash, error) {
+	return x509util.SignatureAlgorithmDetailsForOidPair(si.DigestAlgorithm.Algorithm, si.DigestEncryptionAlgorithm.Algorithm)
+}
+
 // Parse decodes a DER encoded PKCS7 package
 func Parse(data []byte) (p7 *PKCS7, err error) {
 	if len(data) == 0 {
@@ -225,14 +229,26 @@ func (p7 *PKCS7) Verify() (err error) {
 
 func verifySignature(p7 *PKCS7, signer signerInfo) error {
 	signedData := p7.Content
+
+	var algo x509.SignatureAlgorithm
+	var hash crypto.Hash
+	var err error
+
+	oid := signer.DigestAlgorithm.Algorithm
+	if oid.Equal(oidDigestAlgorithmSHA1) || oid.Equal(oidISOSignatureSHA1WithRSA) {
+		algo = x509.SHA1WithRSA
+		hash = crypto.SHA1
+	} else {
+		algo, hash, err = signer.SignatureAlgorithmDetails()
+		if err != nil {
+			return err
+		}
+	}
+
 	if len(signer.AuthenticatedAttributes) > 0 {
 		// TODO(fullsailor): First check the content type match
 		var digest []byte
 		err := unmarshalAttribute(signer.AuthenticatedAttributes, oidAttributeMessageDigest, &digest)
-		if err != nil {
-			return err
-		}
-		hash, err := getHashForOID(signer.DigestAlgorithm.Algorithm)
 		if err != nil {
 			return err
 		}
@@ -254,23 +270,12 @@ func verifySignature(p7 *PKCS7, signer signerInfo) error {
 			return err
 		}
 	}
+
 	cert := getCertFromCertsByIssuerAndSerial(p7.Certificates, signer.IssuerAndSerialNumber)
 	if cert == nil {
 		return errors.New("pkcs7: No certificate for signer")
 	}
 
-	oid := signer.DigestAlgorithm.Algorithm
-	var algo x509.SignatureAlgorithm
-	switch {
-	case oid.Equal(oidDigestAlgorithmSHA1):
-		algo = x509.SHA1WithRSA
-	default:
-		var err error
-		algo, _, err = x509util.SignatureAlgorithmDetailsForOid(oid)
-		if err != nil {
-			return err
-		}
-	}
 	return cert.CheckSignature(algo, signedData, signer.EncryptedDigest)
 }
 

@@ -55,6 +55,30 @@ func SignatureAlgorithmDetailsForOid(oid asn1.ObjectIdentifier) (x509.SignatureA
 		fmt.Errorf("could not find SignatureAlgorithm details for oid: %s", oid)
 }
 
+// SignatureAlgorithmDetailsForOid returns a matching SignatureAlgorithm and
+// crypto.Hash function from a provided oid.
+func SignatureAlgorithmDetailsForOidPair(oidSig, oidEnc asn1.ObjectIdentifier) (x509.SignatureAlgorithm, crypto.Hash, error) {
+	algo, hash, err := SignatureAlgorithmDetailsForOid(oidSig)
+	if err == nil {
+		return algo, hash, err
+	}
+
+	switch {
+	case oidEnc.Equal(oidRSA):
+		switch {
+		case oidSig.Equal(oidSHA256):
+			return x509.SHA256WithRSA, crypto.SHA256, nil
+		case oidSig.Equal(oidSHA384):
+			return x509.SHA384WithRSA, crypto.SHA384, nil
+		case oidSig.Equal(oidSHA512):
+			return x509.SHA512WithRSA, crypto.SHA512, nil
+		}
+	}
+
+	return x509.UnknownSignatureAlgorithm, crypto.Hash(0),
+		fmt.Errorf("could not find SignatureAlgorithm details for oids: %s, %s", oidSig, oidEnc)
+}
+
 // SigningParamsForPublicKey returns the parameters to use for signing.
 // If requestedSigAlgo is not zero then it overrides the default
 // signature algorithm.
@@ -138,6 +162,8 @@ var (
 	oidSignatureECDSAWithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
 	oidSignatureECDSAWithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 	oidSignatureECDSAWithSHA512 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
+
+	oidRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
 
 	oidSHA256 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
 	oidSHA384 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
