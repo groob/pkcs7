@@ -365,7 +365,11 @@ func (p7 *PKCS7) EncryptionAlgorithm() (int, error) {
 	switch {
 	case alg.Equal(oidEncryptionAlgorithmDESCBC), alg.Equal(oidEncryptionAlgorithmDESEDE3CBC):
 		return EncryptionAlgorithmDESCBC, nil
-	case alg.Equal(oidEncryptionAlgorithmAES256CBC), alg.Equal(oidEncryptionAlgorithmAES128GCM), alg.Equal(oidEncryptionAlgorithmAES128CBC):
+	case alg.Equal(oidEncryptionAlgorithmAES256CBC), alg.Equal(oidEncryptionAlgorithmAES128CBC):
+		// TODO: we fallback to DESCBC here because iOS and macOS is happy with that.
+		// a CBC variant should be implemented in https://github.com/groob/pkcs7/blob/9cd374b2a0fc58c461b5b28d6b147fde5027c91f/pkcs7.go#L964-L973
+		return EncryptionAlgorithmDESCBC, nil
+	case alg.Equal(oidEncryptionAlgorithmAES128GCM):
 		return EncryptionAlgorithmAES128GCM, nil
 	default:
 		return 0, ErrUnsupportedAlgorithm
